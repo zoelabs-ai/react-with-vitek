@@ -1,0 +1,23 @@
+services:
+  app:
+    container_name: app_prod
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        PORT: ${PORT:-3333}
+        DATABASE_URL: ${DATABASE_URL}
+    environment:
+      - PORT=${PORT:-3333}
+      - DATABASE_URL=${DATABASE_URL}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    ports:
+      - '${PORT:-3333}:${PORT:-3333}'
+    networks:
+      - coolify
+    restart: unless-stopped
+
+networks:
+  coolify:
+    external: true

@@ -1,25 +1,42 @@
-# Stage 1 — builder
 FROM node:24-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
-WORKDIR /app
-COPY package.json pnpm-lock.yaml* ./
-RUN --mount=type=cache,target=/root/.pnpm-store \
-    pnpm install --frozen-lockfile
-COPY . .
-RUN pnpm build
 
-# Stage 2 — runner
-FROM node:24-alpine AS runner
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+
 WORKDIR /app
-ENV NODE_ENV=production HOST=0.0.0.0
+
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
+
 COPY package.json pnpm-lock.yaml* ./
-RUN --mount=type=cache,target=/root/.pnpm-store \
-    pnpm install --prod --frozen-lockfile
+RUN echo 'store-dir=/app/.pnpm-store' > .npmrc
+RUN --mount=type=cache,id=pnpm-store,target=/app/.pnpm-store \
+  pnpm install --frozen-lockfile --ignore-scripts
+
+COPY . .
+RUN pnpm run build
+
+FROM node:24-alpine AS runner
+
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+
+WORKDIR /app
+
+ARG PORT=3333
+ENV PORT=${PORT}
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+
+COPY package.json pnpm-lock.yaml* ./
+RUN echo 'store-dir=/app/.pnpm-store' > .npmrc
+RUN --mount=type=cache,id=pnpm-store,target=/app/.pnpm-store \
+  pnpm install --prod --frozen-lockfile --ignore-scripts
+
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/public ./public
-RUN pnpm db:generate
-CMD ["sh", "-c", "pnpm db:migrate:deploy && pnpm db:seed && pnpm start"]
+
+EXPOSE ${PORT}
+
+CMD ["sh", "-c", "pnpm db:migrate:deploy && pnpm db:seed && echo 'Migrations and seed OK, starting Vitek...' && pnpm start"]
