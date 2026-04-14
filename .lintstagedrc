@@ -1,6 +1,0 @@
-{
-  "*.{js,jsx,ts,tsx}": [
-    "pretty-quick --write",
-    "eslint --fix"
-  ]
-}
